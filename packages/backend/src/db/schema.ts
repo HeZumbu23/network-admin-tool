@@ -1,10 +1,21 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
+// --- Scenarios ---
+
+export const scenarios = sqliteTable("scenarios", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: integer("is_active", { mode: "boolean" }).default(false),
+  createdAt: text("created_at").default(sql`(datetime('now'))`),
+});
+
 // --- Switches ---
 
 export const switches = sqliteTable("switches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  scenarioId: integer("scenario_id").references(() => scenarios.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   model: text("model"),
   ipAddress: text("ip_address"),
@@ -32,7 +43,8 @@ export const switchPorts = sqliteTable("switch_ports", {
 
 export const vlans = sqliteTable("vlans", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  vlanId: integer("vlan_id").notNull().unique(),
+  scenarioId: integer("scenario_id").references(() => scenarios.id, { onDelete: "cascade" }),
+  vlanId: integer("vlan_id").notNull(),
   name: text("name").notNull(),
   subnet: text("subnet"),
   gateway: text("gateway"),

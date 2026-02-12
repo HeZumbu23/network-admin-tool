@@ -78,4 +78,32 @@ export const api = {
     deleteConnection: (id: number) =>
       request<any>(`/topology/connections/${id}`, { method: "DELETE" }),
   },
+
+  scenarios: {
+    list: () => request<any[]>("/scenarios"),
+    get: (id: number) => request<any>(`/scenarios/${id}`),
+    create: (data: { name: string; description?: string }) =>
+      request<any>("/scenarios", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: { name: string; description?: string }) =>
+      request<any>(`/scenarios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      request<any>(`/scenarios/${id}`, { method: "DELETE" }),
+    activate: (id: number) =>
+      request<any>(`/scenarios/${id}/activate`, { method: "POST" }),
+    deactivateAll: () =>
+      request<any>("/scenarios/deactivate-all", { method: "POST" }),
+  },
+
+  mikrotikImport: {
+    preview: (script: string) =>
+      request<any>("/mikrotik-import/preview", {
+        method: "POST",
+        body: JSON.stringify({ script }),
+      }),
+    import: (data: { script: string; scenarioId?: number; scenarioName?: string }) =>
+      request<any>("/mikrotik-import/import", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  },
 };

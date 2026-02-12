@@ -8,10 +8,22 @@ sqlite.pragma("foreign_keys = ON");
 
 const db = drizzle(sqlite);
 
+// Scenarios table (must be created before tables that reference it)
+db.run(sql`
+  CREATE TABLE IF NOT EXISTS scenarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    is_active INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // Create all tables
 db.run(sql`
   CREATE TABLE IF NOT EXISTS switches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     model TEXT,
     ip_address TEXT,
@@ -39,7 +51,8 @@ db.run(sql`
 db.run(sql`
   CREATE TABLE IF NOT EXISTS vlans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vlan_id INTEGER NOT NULL UNIQUE,
+    scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE,
+    vlan_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     subnet TEXT,
     gateway TEXT,
@@ -92,6 +105,19 @@ db.run(sql`
     link_type TEXT DEFAULT 'trunk'
   )
 `);
+
+// Safe migrations for existing databases: add scenario_id columns if missing
+const switchCols = (sqlite.prepare("PRAGMA table_info(switches)").all() as any[]).map((c: any) => c.name);
+if (!switchCols.includes("scenario_id")) {
+  sqlite.exec("ALTER TABLE switches ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE");
+  console.log("Added scenario_id to switches.");
+}
+
+const vlanCols = (sqlite.prepare("PRAGMA table_info(vlans)").all() as any[]).map((c: any) => c.name);
+if (!vlanCols.includes("scenario_id")) {
+  sqlite.exec("ALTER TABLE vlans ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE");
+  console.log("Added scenario_id to vlans.");
+}
 
 console.log("Database migrated successfully.");
 sqlite.close();

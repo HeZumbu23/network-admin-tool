@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/frontend"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=packages/backend & npm run dev --workspace=packages/frontend",
-    "dev:backend": "npm run dev --workspace=packages/backend",
+    "dev": "dotnet run --project packages/backend & npm run dev --workspace=packages/frontend",
+    "dev:backend": "dotnet run --project packages/backend",
+    "dev:backend:watch": "dotnet watch --project packages/backend run",
     "dev:frontend": "npm run dev --workspace=packages/frontend",
-    "build": "npm run build --workspace=packages/backend && npm run build --workspace=packages/frontend",
-    "db:migrate": "npm run db:migrate --workspace=packages/backend"
+    "build:frontend": "npm run build --workspace=packages/frontend",
+    "build:backend": "dotnet publish packages/backend -c Release -o packages/backend/publish"
   }
 }

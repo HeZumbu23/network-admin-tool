@@ -1,15 +1,11 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { sql } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 
-const sqlite = new Database("network-admin.db");
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+const client = createClient({ url: "file:network-admin.db" });
 
-const db = drizzle(sqlite);
+await client.execute("PRAGMA journal_mode = WAL");
+await client.execute("PRAGMA foreign_keys = OFF"); // OFF during migration for ALTER TABLE
 
-// Scenarios table (must be created before tables that reference it)
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS scenarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -19,8 +15,7 @@ db.run(sql`
   )
 `);
 
-// Create all tables
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS switches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE,
@@ -36,7 +31,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS switch_ports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     switch_id INTEGER NOT NULL REFERENCES switches(id) ON DELETE CASCADE,
@@ -48,7 +43,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS vlans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE,
@@ -62,7 +57,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -76,7 +71,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS access_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -85,7 +80,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS schedule_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     profile_id INTEGER NOT NULL REFERENCES access_profiles(id) ON DELETE CASCADE,
@@ -95,7 +90,7 @@ db.run(sql`
   )
 `);
 
-db.run(sql`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS connections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     from_switch_id INTEGER NOT NULL REFERENCES switches(id) ON DELETE CASCADE,
@@ -106,18 +101,25 @@ db.run(sql`
   )
 `);
 
-// Safe migrations for existing databases: add scenario_id columns if missing
-const switchCols = (sqlite.prepare("PRAGMA table_info(switches)").all() as any[]).map((c: any) => c.name);
+// Safe migrations: add scenario_id columns if missing (column index 1 = name)
+const switchInfo = await client.execute("PRAGMA table_info(switches)");
+const switchCols = switchInfo.rows.map((r) => r[1] as string);
 if (!switchCols.includes("scenario_id")) {
-  sqlite.exec("ALTER TABLE switches ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE");
+  await client.execute(
+    "ALTER TABLE switches ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE"
+  );
   console.log("Added scenario_id to switches.");
 }
 
-const vlanCols = (sqlite.prepare("PRAGMA table_info(vlans)").all() as any[]).map((c: any) => c.name);
+const vlanInfo = await client.execute("PRAGMA table_info(vlans)");
+const vlanCols = vlanInfo.rows.map((r) => r[1] as string);
 if (!vlanCols.includes("scenario_id")) {
-  sqlite.exec("ALTER TABLE vlans ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE");
+  await client.execute(
+    "ALTER TABLE vlans ADD COLUMN scenario_id INTEGER REFERENCES scenarios(id) ON DELETE CASCADE"
+  );
   console.log("Added scenario_id to vlans.");
 }
 
+await client.execute("PRAGMA foreign_keys = ON");
 console.log("Database migrated successfully.");
-sqlite.close();
+client.close();

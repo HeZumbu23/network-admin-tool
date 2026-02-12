@@ -22,37 +22,29 @@ mikrotikImportRouter.post("/preview", (req, res) => {
  * POST /api/mikrotik-import/import
  * Parse and import a RSC script into a scenario.
  * Body: { script: string, scenarioId?: number, scenarioName?: string }
- * If scenarioId is provided, imports into existing scenario.
- * If scenarioName is provided (and no scenarioId), creates a new scenario.
  */
-mikrotikImportRouter.post("/import", (req, res) => {
+mikrotikImportRouter.post("/import", async (req, res) => {
   const { script, scenarioId: existingScenarioId, scenarioName } = req.body;
   if (!script) return res.status(400).json({ error: "script is required" });
 
   const parsed = parseMikrotikScript(script);
 
   if (parsed.devices.length === 0) {
-    return res.status(400).json({
-      error: "Keine Geräte im Script gefunden.",
-      warnings: parsed.warnings,
-    });
+    return res.status(400).json({ error: "Keine Geräte im Script gefunden.", warnings: parsed.warnings });
   }
 
   let scenarioId: number;
 
   if (existingScenarioId) {
-    // Verify scenario exists
-    const existing = db.select().from(scenarios).where(eq(scenarios.id, Number(existingScenarioId))).get();
+    const [existing] = await db.select().from(scenarios).where(eq(scenarios.id, Number(existingScenarioId)));
     if (!existing) return res.status(404).json({ error: "Scenario not found" });
     scenarioId = existing.id;
   } else {
-    // Create new scenario
     const name = scenarioName || parsed.devices[0]?.name || "Importiertes Netzwerk";
-    const newScenario = db
+    const [newScenario] = await db
       .insert(scenarios)
-      .values({ name, description: `Importiert aus Mikrotik RSC`, isActive: false })
-      .returning()
-      .get();
+      .values({ name, description: "Importiert aus Mikrotik RSC", isActive: false })
+      .returning();
     scenarioId = newScenario.id;
   }
 
@@ -62,15 +54,13 @@ mikrotikImportRouter.post("/import", (req, res) => {
   // Import VLANs first (from router device)
   for (const device of parsed.devices) {
     for (const parsedVlan of device.vlans) {
-      // Check if VLAN with same ID already exists in this scenario
-      const existing = db
+      const [existing] = await db
         .select()
         .from(vlans)
-        .where(and(eq(vlans.scenarioId, scenarioId), eq(vlans.vlanId, parsedVlan.vlanId)))
-        .get();
+        .where(and(eq(vlans.scenarioId, scenarioId), eq(vlans.vlanId, parsedVlan.vlanId)));
 
       if (!existing) {
-        const newVlan = db
+        const [newVlan] = await db
           .insert(vlans)
           .values({
             scenarioId,
@@ -82,12 +72,11 @@ mikrotikImportRouter.post("/import", (req, res) => {
             dhcpRange: parsedVlan.dhcpRange,
             description: parsedVlan.description,
           })
-          .returning()
-          .get();
+          .returning();
         importedVlans.push(newVlan);
       } else {
-        // Update existing
-        db.update(vlans)
+        await db
+          .update(vlans)
           .set({
             name: parsedVlan.name,
             subnet: parsedVlan.subnet,
@@ -96,8 +85,7 @@ mikrotikImportRouter.post("/import", (req, res) => {
             dhcpRange: parsedVlan.dhcpRange,
             description: parsedVlan.description,
           })
-          .where(eq(vlans.id, existing.id))
-          .run();
+          .where(eq(vlans.id, existing.id));
         importedVlans.push(existing);
       }
     }
@@ -105,7 +93,7 @@ mikrotikImportRouter.post("/import", (req, res) => {
 
   // Import switches/routers
   for (const device of parsed.devices) {
-    const newSwitch = db
+    const [newSwitch] = await db
       .insert(switches)
       .values({
         scenarioId,
@@ -117,37 +105,30 @@ mikrotikImportRouter.post("/import", (req, res) => {
         posX: importedSwitches.length * 300,
         posY: 100,
       })
-      .returning()
-      .get();
+      .returning();
 
-    // Create ports
     for (const port of device.ports) {
-      db.insert(switchPorts)
-        .values({
-          switchId: newSwitch.id,
-          portNumber: port.portNumber,
-          label: port.comment || port.interfaceName,
-          vlanMode: port.vlanMode,
-          pvid: port.pvid,
-          trunkVlans: JSON.stringify(port.trunkVlans),
-        })
-        .run();
+      await db.insert(switchPorts).values({
+        switchId: newSwitch.id,
+        portNumber: port.portNumber,
+        label: port.comment || port.interfaceName,
+        vlanMode: port.vlanMode,
+        pvid: port.pvid,
+        trunkVlans: JSON.stringify(port.trunkVlans),
+      });
     }
 
-    // Fill remaining ports if device has more ports than explicitly configured
     const configuredPorts = new Set(device.ports.map((p) => p.portNumber));
     for (let i = 1; i <= device.portCount; i++) {
       if (!configuredPorts.has(i)) {
-        db.insert(switchPorts)
-          .values({
-            switchId: newSwitch.id,
-            portNumber: i,
-            label: `ether${i}`,
-            vlanMode: "access",
-            pvid: 1,
-            trunkVlans: "[]",
-          })
-          .run();
+        await db.insert(switchPorts).values({
+          switchId: newSwitch.id,
+          portNumber: i,
+          label: `ether${i}`,
+          vlanMode: "access",
+          pvid: 1,
+          trunkVlans: "[]",
+        });
       }
     }
 

@@ -1,9 +1,11 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema.js";
 
-const sqlite = new Database("network-admin.db");
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+const client = createClient({ url: "file:network-admin.db" });
 
-export const db = drizzle(sqlite, { schema });
+// Enable WAL mode and foreign keys
+await client.execute("PRAGMA journal_mode = WAL");
+await client.execute("PRAGMA foreign_keys = ON");
+
+export const db = drizzle(client, { schema });

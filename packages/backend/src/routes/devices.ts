@@ -6,8 +6,8 @@ import { eq } from "drizzle-orm";
 export const devicesRouter = Router();
 
 // List all devices (with VLAN and switch names)
-devicesRouter.get("/", (_req, res) => {
-  const result = db
+devicesRouter.get("/", async (_req, res) => {
+  const result = await db
     .select({
       id: devices.id,
       name: devices.name,
@@ -23,41 +23,36 @@ devicesRouter.get("/", (_req, res) => {
     })
     .from(devices)
     .leftJoin(vlans, eq(devices.vlanId, vlans.id))
-    .leftJoin(switches, eq(devices.switchId, switches.id))
-    .all();
+    .leftJoin(switches, eq(devices.switchId, switches.id));
   res.json(result);
 });
 
 // Create device
-devicesRouter.post("/", (req, res) => {
-  const { name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType } =
-    req.body;
-  const result = db
+devicesRouter.post("/", async (req, res) => {
+  const { name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType } = req.body;
+  const [result] = await db
     .insert(devices)
     .values({ name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType })
-    .returning()
-    .get();
+    .returning();
   res.status(201).json(result);
 });
 
 // Update device
-devicesRouter.put("/:id", (req, res) => {
+devicesRouter.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType, isOnline } =
-    req.body;
-  const result = db
+  const { name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType, isOnline } = req.body;
+  const [result] = await db
     .update(devices)
     .set({ name, macAddress, ipAddress, vlanId, switchId, portNumber, deviceType, isOnline })
     .where(eq(devices.id, id))
-    .returning()
-    .get();
+    .returning();
   if (!result) return res.status(404).json({ error: "Device not found" });
   res.json(result);
 });
 
 // Delete device
-devicesRouter.delete("/:id", (req, res) => {
+devicesRouter.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  db.delete(devices).where(eq(devices.id, id)).run();
+  await db.delete(devices).where(eq(devices.id, id));
   res.json({ success: true });
 });

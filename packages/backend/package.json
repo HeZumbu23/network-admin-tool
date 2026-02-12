@@ -10,13 +10,12 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
+    "@libsql/client": "^0.14.0",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.38.0",
     "express": "^4.21.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "drizzle-kit": "^0.30.0",

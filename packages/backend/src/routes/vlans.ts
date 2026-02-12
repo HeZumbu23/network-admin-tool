@@ -6,41 +6,37 @@ import { eq } from "drizzle-orm";
 export const vlansRouter = Router();
 
 // List all VLANs
-vlansRouter.get("/", (_req, res) => {
-  const result = db.select().from(vlans).all();
+vlansRouter.get("/", async (_req, res) => {
+  const result = await db.select().from(vlans);
   res.json(result);
 });
 
 // Create VLAN
-vlansRouter.post("/", (req, res) => {
-  const { vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description } =
-    req.body;
-  const result = db
+vlansRouter.post("/", async (req, res) => {
+  const { vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description } = req.body;
+  const [result] = await db
     .insert(vlans)
     .values({ vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description })
-    .returning()
-    .get();
+    .returning();
   res.status(201).json(result);
 });
 
 // Update VLAN
-vlansRouter.put("/:id", (req, res) => {
+vlansRouter.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description } =
-    req.body;
-  const result = db
+  const { vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description } = req.body;
+  const [result] = await db
     .update(vlans)
     .set({ vlanId, name, subnet, gateway, dhcpEnabled, dhcpRange, description })
     .where(eq(vlans.id, id))
-    .returning()
-    .get();
+    .returning();
   if (!result) return res.status(404).json({ error: "VLAN not found" });
   res.json(result);
 });
 
 // Delete VLAN
-vlansRouter.delete("/:id", (req, res) => {
+vlansRouter.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  db.delete(vlans).where(eq(vlans.id, id)).run();
+  await db.delete(vlans).where(eq(vlans.id, id));
   res.json({ success: true });
 });

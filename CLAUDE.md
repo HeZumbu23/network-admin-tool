@@ -15,3 +15,6 @@ Aufgaben des network-admin-tool:
 
 3. Front-end-App
 - Ein Webapp zur Verwaltung wird erstellt. Diese soll insbesondere für Mobile View optimiert werden.
+
+4. Deployment
+- The app will run on a synology docker compose stack.
